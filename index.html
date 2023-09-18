@@ -8,18 +8,28 @@
   <body>
 
     <py-config>
-      packages = ["pandas", "https://github.com/majulahsingapuri/pdfreader/raw/master/dist/pdfreader-0.1.13.dev0-py3-none-any.whl"]
+      packages = ["pandas", "setuptools", "pdfreader-0.1.13.dev0-py3-none-any.whl"]
     </py-config>
 
     <py-script>
-        from pdfreader import SimplePDFViewer
+        from pdfreader import SimplePDFViewer, PDFDocument
+        import pandas as pd
         from pyodide.ffi.wrappers import add_event_listener
+        from pyodide.ffi import to_js
+        from js import document, window, Blob, URL
 
         df = None
 
-        async def process(e):
-            file = file.target.files.item(0)
-            fd = open(file, "rb")
+        async def get_bytes_from_file(file):
+            array_buf = await file.arrayBuffer()
+            return array_buf.to_bytes()
+
+        async def process_file(e):
+            global df
+            file_list = e.target.files
+            first_item = file_list.item(0)
+        
+            fd: bytes = await get_bytes_from_file(first_item)
             viewer = SimplePDFViewer(fd)
             doc = PDFDocument(fd)
             pages = len([p for p in doc.pages()])
@@ -55,15 +65,28 @@
             extracted = [extracted[i : i + 5] for i in range(0, len(extracted), 5)]
             extracted.pop()
             df = pd.DataFrame(extracted, columns=["Date", "Merchant", "Ref", "Amount", "CR/DR"])
+        
+        def download_file(*args):
+            global df
+            if df is None: return
+            data = df.to_csv(index=False)
+            encoded_data = data.encode('utf-8')
+            content = to_js(encoded_data)
+            file = Blob.new([content], {"type": "text/csv"})
+            url = URL.createObjectURL(file)
+            hidden_link = document.createElement("a")
+            hidden_link.setAttribute("download", "data.csv")
+            hidden_link.setAttribute("href", url)
+            hidden_link.click()
 
-        add_event_listener(document.getElementById("file-upload"), "change", process)
+        add_event_listener(document.getElementById("file-upload"), "change", process_file)
+        add_event_listener(document.getElementById("download"), "click", download_file)
+
 
     </py-script>
 
     <label for="Upload a File"></label>
     <input type="file" id="file-upload">
-    <py-repl>
-        df if df else "Upload File"
-    </py-repl>
+    <button id="download">Click to Download</button>
   </body>
 </html>
