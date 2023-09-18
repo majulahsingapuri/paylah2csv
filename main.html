@@ -1,0 +1,69 @@
+<html>
+  <head>
+    <title>Ice Cream Picker</title>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="https://pyscript.net/latest/pyscript.css" />
+    <script defer src="https://pyscript.net/latest/pyscript.js"></script>
+  </head>
+  <body>
+
+    <py-config>
+      packages = ["pandas", "https://github.com/majulahsingapuri/pdfreader/raw/master/dist/pdfreader-0.1.13.dev0-py3-none-any.whl"]
+    </py-config>
+
+    <py-script>
+        from pdfreader import SimplePDFViewer
+        from pyodide.ffi.wrappers import add_event_listener
+
+        df = None
+
+        async def process(e):
+            file = file.target.files.item(0)
+            fd = open(file, "rb")
+            viewer = SimplePDFViewer(fd)
+            doc = PDFDocument(fd)
+            pages = len([p for p in doc.pages()])
+            extracted = []
+            l_keywords = [
+                "NEW TRANSACTIONS",
+                "AMOUNT(S$)"
+            ]
+            r_keywords = [
+                "Total :",
+                "CR",
+                "DB"
+            ]
+            for i in range(1, pages + 1):
+                viewer.navigate(i)
+                viewer.render()
+                data = viewer.canvas.strings
+                length = len(data)
+                l, r = 0, length - 1
+                while (not any([kw in data[l] for kw in l_keywords]) and l < r):
+                    l += 1
+                    if l + 1 < length and ("PayLah! Wallet No." in data[l + 1]):
+                        l += 1
+                l += 1
+                if data[r] not in ["CR", "DB"]:
+                    while (not any([kw in data[r] for kw in r_keywords]) and l < r):
+                        r -= 1
+                        if "Total :" in data[r - 4]:
+                            r -= 4
+                r += 1
+                s = slice(l, r)
+                extracted += viewer.canvas.strings[s]
+            extracted = [extracted[i : i + 5] for i in range(0, len(extracted), 5)]
+            extracted.pop()
+            df = pd.DataFrame(extracted, columns=["Date", "Merchant", "Ref", "Amount", "CR/DR"])
+
+        add_event_listener(document.getElementById("file-upload"), "change", process)
+
+    </py-script>
+
+    <label for="Upload a File"></label>
+    <input type="file" id="file-upload">
+    <py-repl>
+        df if df else "Upload File"
+    </py-repl>
+  </body>
+</html>
