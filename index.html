@@ -64,7 +64,9 @@
                 extracted += viewer.canvas.strings[s]
             extracted = [extracted[i : i + 5] for i in range(0, len(extracted), 5)]
             extracted.pop()
-            df = pd.DataFrame(extracted, columns=["Date", "Merchant", "Ref", "Amount", "CR/DR"])
+            df = pd.DataFrame(extracted, columns=["Date", "Merchant", "Ref", "Amount", "CR/DB"])
+            df["Amount"] = df.apply(lambda x: float(x["Amount"] if x["CR/DB"] == "CR" else -float(x["Amount"])), axis=1)
+            df = df[["Date", "Merchant", "Amount"]]
         
         def download_file(*args):
             global df
@@ -81,8 +83,6 @@
 
         add_event_listener(document.getElementById("file-upload"), "change", process_file)
         add_event_listener(document.getElementById("download"), "click", download_file)
-
-
     </py-script>
 
     <label for="Upload a File"></label>
